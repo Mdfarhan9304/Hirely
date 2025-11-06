@@ -1,0 +1,155 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import React, { useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+
+type PDFUploadStepProps = {
+  question: string;
+  onNext: (fileUri: string, fileName: string) => void;
+  onClose?: () => void;
+  onBack?: () => void;
+  error?: string | null;
+};
+
+export default function PDFUploadStep({
+  question,
+  onNext,
+  onClose,
+  onBack,
+  error,
+}: PDFUploadStepProps) {
+  const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const pickDocument = async () => {
+    try {
+      setLoading(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        setSelectedFile({
+          uri: file.uri,
+          name: file.name || 'resume.pdf',
+        });
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (selectedFile) {
+      onNext(selectedFile.uri, selectedFile.name);
+    } else {
+      // Allow skipping PDF upload
+      onNext('', '');
+    }
+  };
+
+  const canProceed = !loading;
+
+  return (
+    <View className="flex-1 bg-white">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-6 pt-16 pb-8">
+        <View className="w-10">
+          {onBack && (
+            <TouchableOpacity onPress={onBack} className="w-10 h-10 items-center justify-center">
+              <Ionicons name="arrow-back" size={28} color="#1F2937" />
+            </TouchableOpacity>
+          )}
+        </View>
+        {onClose && (
+          <TouchableOpacity onPress={onClose} className="w-10 h-10 items-center justify-center">
+            <Ionicons name="close" size={28} color="#1F2937" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Main Content */}
+      <View className="flex-1 px-6 pt-8">
+        {/* Question with accent line */}
+        <View className="flex-row items-start mb-12">
+          <View className="w-1 h-12 bg-orange-500 mr-4 rounded-full" />
+          <Text className="flex-1 text-4xl font-bold text-gray-900 font-poppins" style={{ lineHeight: 48 }}>
+            {question}
+          </Text>
+        </View>
+
+        {/* Upload Area */}
+        <TouchableOpacity
+          onPress={pickDocument}
+          disabled={loading}
+          className={`border-2 border-dashed rounded-2xl p-8 items-center justify-center ${
+            selectedFile ? 'border-orange-500 bg-orange-50' : 'border-gray-300 bg-gray-50'
+          }`}
+          activeOpacity={0.7}
+        >
+          {selectedFile ? (
+            <View className="items-center">
+              <Ionicons name="document-text" size={48} color="#F97316" />
+              <Text className="text-lg font-poppins font-semibold text-gray-900 mt-4 text-center">
+                {selectedFile.name}
+              </Text>
+              <Text className="text-sm font-poppins text-gray-500 mt-2">
+                Tap to change
+              </Text>
+            </View>
+          ) : (
+            <View className="items-center">
+              <Ionicons name="cloud-upload-outline" size={48} color="#9CA3AF" />
+              <Text className="text-lg font-poppins font-semibold text-gray-700 mt-4 text-center">
+                {loading ? 'Loading...' : 'Tap to upload PDF'}
+              </Text>
+              <Text className="text-sm font-poppins text-gray-500 mt-2">
+                Resume, CV, or Portfolio
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {error && (
+          <Text className="text-red-500 text-sm font-poppins mt-4">{error}</Text>
+        )}
+
+        {!selectedFile && (
+          <TouchableOpacity
+            onPress={handleNext}
+            className="mt-6"
+          >
+            <Text className="text-center text-gray-500 font-poppins">
+              Skip for now
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Next Button - Only show if file is selected */}
+      {selectedFile && (
+        <View className="absolute bottom-8 right-6">
+          <TouchableOpacity
+            onPress={handleNext}
+            disabled={!canProceed}
+            className={`w-16 h-16 rounded-full items-center justify-center ${
+              canProceed ? 'bg-orange-500' : 'bg-gray-300'
+            }`}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name="arrow-forward" 
+              size={28} 
+              color={canProceed ? "white" : "#9CA3AF"} 
+            />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+

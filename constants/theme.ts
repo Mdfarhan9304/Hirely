@@ -1,3 +1,27 @@
+export const colors = {
+  primary: '#2563EB', // blue-600
+  primaryDark: '#1D4ED8', // blue-700
+  bg: '#FFFFFF',
+  text: '#0F172A',
+  subtext: '#64748B',
+  danger: '#EF4444',
+  border: '#E5E7EB',
+};
+
+export const gradients = {
+  primary: ['#60A5FA', '#2563EB'],
+};
+
+export const shadows = {
+  card: {
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+};
+
 /**
  * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.

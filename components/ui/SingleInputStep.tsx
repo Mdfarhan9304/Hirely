@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type SingleInputStepProps = {
   question: string;
@@ -12,8 +12,9 @@ type SingleInputStepProps = {
   onBack?: () => void;
   disabled?: boolean;
   multiline?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   error?: string | null;
+  required?: boolean;
 };
 
 export default function SingleInputStep({
@@ -26,19 +27,19 @@ export default function SingleInputStep({
   onBack,
   disabled = false,
   multiline = false,
-  keyboardType = 'default',
+  keyboardType = "default",
   error,
+  required = true,
 }: SingleInputStepProps) {
   const inputRef = React.useRef<TextInput>(null);
 
   React.useEffect(() => {
-   
     setTimeout(() => {
       inputRef.current?.focus();
     }, 300);
   }, []);
 
-  const canProceed = value.trim().length > 0 && !disabled;
+  const canProceed = (!required || value.trim().length > 0) && !disabled;
 
   return (
     <View className="flex-1 bg-white">
@@ -46,13 +47,19 @@ export default function SingleInputStep({
       <View className="flex-row items-center justify-between px-6 pt-16 pb-8">
         <View className="w-10">
           {onBack && (
-            <TouchableOpacity onPress={onBack} className="w-10 h-10 items-center justify-center">
+            <TouchableOpacity
+              onPress={onBack}
+              className="w-10 h-10 items-center justify-center"
+            >
               <Ionicons name="arrow-back" size={28} color="#1F2937" />
             </TouchableOpacity>
           )}
         </View>
         {onClose && (
-          <TouchableOpacity onPress={onClose} className="w-10 h-10 items-center justify-center">
+          <TouchableOpacity
+            onPress={onClose}
+            className="w-10 h-10 items-center justify-center"
+          >
             <Ionicons name="close" size={28} color="#1F2937" />
           </TouchableOpacity>
         )}
@@ -60,42 +67,47 @@ export default function SingleInputStep({
 
       {/* Main Content */}
       <View className="flex-1 px-6 pt-8">
-        {/* Question with accent line */}
         <View className="flex-row items-start mb-12">
-          <View className="w-1 h-12 bg-blue-500 mr-4 mt-2 rounded-full" />
-          <Text className="flex-1 text-4xl items-start font-bold text-gray-900 font-poppins" style={{ lineHeight: 48 }}>
+          <View className="w-1 h-12 bg-\[#50c8eb\] mr-4 mt-2 rounded-full" />
+          <Text
+            className="flex-1 text-4xl items-start font-bold text-gray-900 font-poppins"
+            style={{ lineHeight: 48 }}
+          >
             {question}
           </Text>
         </View>
 
         {/* Input Field */}
         <View className="mb-8">
-        <TextInput
-    ref={inputRef}
-    value={value}
-    onChangeText={onChangeText}
-    placeholder={placeholder}
-    placeholderTextColor="#9CA3AF"
-    multiline={multiline}
-    numberOfLines={multiline ? 4 : 1}
-    keyboardType={keyboardType}
-    className="text-2xl font-poppins text-gray-900 border-b-2"
-    style={{
-    borderBottomColor: error
-      ? '#EF4444'
-      : value.trim().length > 0
-      ? '#F97316'
-      : '#D1D5DB',
-    textAlignVertical: multiline ? 'top' : 'center', 
+          <TextInput
+            ref={inputRef}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor="#9CA3AF"
+            multiline={multiline}
+            numberOfLines={multiline ? 4 : 1}
+            keyboardType={keyboardType}
+            className="text-2xl font-poppins text-gray-900 border-b-2"
+            style={{
+              borderBottomColor: error
+                ? "#EF4444"
+                : value.trim().length > 0
+                  ? "#50c8eb"
+                  : "#D1D5DB",
+              textAlignVertical: multiline ? "top" : "center",
 
-    paddingVertical: multiline ? 8 : 0, 
-  }}
-  autoFocus
-  autoCapitalize="words"
-/>
+              paddingVertical: multiline ? 8 : 0,
+            }}
+            autoFocus
+            autoCapitalize={multiline ? "sentences" : "words"}
+            editable={!disabled}
+          />
 
           {error && (
-            <Text className="text-red-500 text-sm font-poppins mt-2">{error}</Text>
+            <Text className="text-red-500 text-sm font-poppins mt-2">
+              {error}
+            </Text>
           )}
         </View>
       </View>
@@ -106,18 +118,17 @@ export default function SingleInputStep({
           onPress={onNext}
           disabled={!canProceed}
           className={`w-16 h-16 rounded-full items-center justify-center ${
-            canProceed ? 'bg-blue-500' : 'bg-gray-300'
+            canProceed ? "bg-[#50c8eb]" : "bg-gray-300"
           }`}
           activeOpacity={0.8}
         >
-          <Ionicons 
-            name="arrow-forward" 
-            size={28} 
-            color={canProceed ? "white" : "#9CA3AF"} 
+          <Ionicons
+            name="arrow-forward"
+            size={28}
+            color={canProceed ? "white" : "#9CA3AF"}
           />
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-

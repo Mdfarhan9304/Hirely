@@ -74,13 +74,14 @@ const Onboarding = () => {
     setError(null)
     
     if (!user) {
-      // Save pending onboarding data
       try {
         const pending: any = {
           role: selectedRole,
         }
         
         if (selectedRole === 'job_seeker') {
+          const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
+          pending.full_name = fullName
           pending.first_name = firstName.trim()
           pending.last_name = lastName.trim()
           pending.qualification = qualification.trim()
@@ -101,10 +102,14 @@ const Onboarding = () => {
       }
     }
 
-    // Validate required fields
+
     if (selectedRole === 'job_seeker') {
-      if (!firstName.trim() || !lastName.trim() || !qualification.trim()) {
-        setError('Please fill in all required fields')
+      if (!firstName.trim() || !lastName.trim() || !qualification.trim() || !resumeUri) {
+        if (!resumeUri) {
+          setError('Resume is required for job seekers')
+        } else {
+          setError('Please fill in all required fields')
+        }
         return
       }
     } else {
@@ -128,18 +133,61 @@ const Onboarding = () => {
         company_name: selectedRole === 'employer' ? companyName.trim() : null,
       }
 
-      // Add job seeker specific fields
       if (selectedRole === 'job_seeker') {
         base.first_name = firstName.trim()
         base.last_name = lastName.trim()
         base.qualification = qualification.trim()
+        // Resume is required for job seekers
         if (resumeUri) {
-          base.resume_uri = resumeUri
+          // Check if resumeUri is a local file (starts with file://) or already a public URL
+          let finalResumeUri = resumeUri
+          if (resumeUri.startsWith('file://')) {
+            try {
+              // Upload local file to Supabase Storage using expo-file-system
+              const FileSystem = await import('expo-file-system/legacy')
+              const base64 = await FileSystem.readAsStringAsync(resumeUri, {
+                encoding: 'base64',
+              })
+              
+              // Convert base64 to ArrayBuffer
+              const byteCharacters = atob(base64)
+              const byteNumbers = new Array(byteCharacters.length)
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i)
+              }
+              const byteArray = new Uint8Array(byteNumbers)
+              
+              const timestamp = Date.now()
+              const fileExtension = resumeFileName.split('.').pop() || 'pdf'
+              const fileName = `${timestamp}.${fileExtension}`
+              const filePath = `${user.id}/${fileName}`
+              
+              const { error: uploadError } = await supabase.storage
+                .from('resumes')
+                .upload(filePath, byteArray, {
+                  contentType: 'application/pdf',
+                  upsert: false,
+                })
+              
+              if (!uploadError) {
+                const { data: urlData } = supabase.storage
+                  .from('resumes')
+                  .getPublicUrl(filePath)
+                finalResumeUri = urlData.publicUrl
+              } else {
+                console.error('Error uploading resume:', uploadError)
+                // Fallback to local URI if upload fails
+              }
+            } catch (uploadErr) {
+              console.error('Error uploading resume:', uploadErr)
+              // Fallback to local URI if upload fails
+            }
+          }
+          base.resume_uri = finalResumeUri
           base.resume_file_name = resumeFileName
         }
       }
 
-      // Add employer specific fields
       if (selectedRole === 'employer') {
         base.company_size = companySize.trim()
         if (companyDescription.trim()) {
@@ -163,11 +211,11 @@ const Onboarding = () => {
     }
   }
 
-  // Render role selection screen
+
   if (step === 0) {
     return (
       <LinearGradient
-       colors={['#29B6F6',  '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff']} 
+      colors={['#50c8eb',  '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff']} 
        start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
         <SafeAreaView className="flex-1 ">
           <View className="flex-1 px-6 pt-12">
@@ -181,13 +229,13 @@ const Onboarding = () => {
             <View className="flex-1">
               <TouchableOpacity
                 onPress={() => handleRoleSelection('job_seeker')}
-                className="p-6 rounded-2xl border-2 border-blue-500 bg-blue-50 mb-4"
+                className="p-6 rounded-2xl border-2 border-\[#50c8eb\] bg-\[#50c8eb\]/10 mb-4"
                 activeOpacity={0.8}
               >
                 <View className="flex-row items-center mb-2">
-                  <UserSearch size={24} color="#29B6F6" />
+                  <UserSearch size={24} color="#50c8eb" />
                   <Text className="text-2xl font-bold text-gray-900 font-poppins ml-2">
-                    Job Seeker
+                    Job-Seeker 
                   </Text>
                 </View>
                 <Text className="text-gray-600 font-poppins">
@@ -197,11 +245,11 @@ const Onboarding = () => {
 
               <TouchableOpacity
                 onPress={() => handleRoleSelection('employer')}
-                className="p-6 rounded-2xl border-2  border-blue-500 bg-blue-50 mb-4"
+                className="p-6 rounded-2xl border-2  border-\[#50c8eb\] bg-\[#50c8eb\]/10 mb-4"
                 activeOpacity={0.8}
               >
                 <View className="flex-row items-center mb-2">
-                  <Building2 size={24} color="#29B6F6" />
+                  <Building2 size={24} color="#50c8eb" />
                   <Text className="text-2xl font-bold text-gray-900 font-poppins ml-2">
                     Employer
                   </Text>
@@ -263,6 +311,7 @@ const Onboarding = () => {
         return (
           <PDFUploadStep
             question="Upload your resume"
+            required={true}
             onNext={(uri, fileName) => {
               setResumeUri(uri)
               setResumeFileName(fileName)
@@ -318,6 +367,7 @@ const Onboarding = () => {
             error={error}
             disabled={loading}
             multiline
+            required={false}
           />
         )
       default:

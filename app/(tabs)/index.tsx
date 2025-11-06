@@ -2,6 +2,7 @@ import CardStack from '@/components/card-stack';
 import SwipeActions from '@/components/swipe-actions';
 import { useAuthStore } from '@/store/useAuthstore';
 import { useCardStore } from '@/store/useCardStore';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -39,6 +40,8 @@ export default function HomeScreen() {
 
   const handleLogout = async () => {
     await logout();
+    // Navigate to login screen after logout
+    router.replace('/(auth)/login');
   };
 
   return (

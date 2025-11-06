@@ -31,8 +31,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await supabase.auth.signOut();
-    set({ user: null, session: null, profile: null, loading: false });
+    try {
+      await supabase.auth.signOut();
+      set({ user: null, session: null, profile: null, loading: false });
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Still clear local state even if signOut fails
+      set({ user: null, session: null, profile: null, loading: false });
+    }
   },
 
   setLoading: (loading) => set({ loading }),
@@ -88,14 +94,83 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           try {
             const pendingRaw = await AsyncStorage.getItem('pending_onboarding');
             if (pendingRaw) {
-              const pending = JSON.parse(pendingRaw) as { role?: string; full_name?: string | null; company_name?: string | null };
+              const pending = JSON.parse(pendingRaw) as { 
+                role?: string; 
+                full_name?: string | null; 
+                company_name?: string | null;
+                resume_uri?: string;
+                resume_file_name?: string;
+                first_name?: string;
+                last_name?: string;
+                qualification?: string;
+                company_size?: string;
+                company_description?: string;
+              };
               if (pending?.role) {
-                const base = {
+                const base: any = {
                   user_id: session.user.id,
                   role: pending.role,
                   full_name: pending.role === 'job_seeker' ? pending.full_name : null,
                   company_name: pending.role === 'employer' ? pending.company_name : null,
                 };
+                
+                // Add job seeker specific fields
+                if (pending.role === 'job_seeker') {
+                  if (pending.first_name) base.first_name = pending.first_name;
+                  if (pending.last_name) base.last_name = pending.last_name;
+                  if (pending.qualification) base.qualification = pending.qualification;
+                  
+                  // Upload resume if it's a local file
+                  if (pending.resume_uri) {
+                    let finalResumeUri = pending.resume_uri;
+                    if (pending.resume_uri.startsWith('file://')) {
+                      try {
+                        const FileSystem = await import('expo-file-system/legacy');
+                        const base64 = await FileSystem.readAsStringAsync(pending.resume_uri, {
+                          encoding: 'base64',
+                        });
+                        
+                        // Convert base64 to ArrayBuffer
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                          byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        
+                        const timestamp = Date.now();
+                        const fileExtension = pending.resume_file_name?.split('.').pop() || 'pdf';
+                        const fileName = `${timestamp}.${fileExtension}`;
+                        const filePath = `${session.user.id}/${fileName}`;
+                        
+                        const { error: uploadError } = await supabase.storage
+                          .from('resumes')
+                          .upload(filePath, byteArray, {
+                            contentType: 'application/pdf',
+                            upsert: false,
+                          });
+                        
+                        if (!uploadError) {
+                          const { data: urlData } = supabase.storage
+                            .from('resumes')
+                            .getPublicUrl(filePath);
+                          finalResumeUri = urlData.publicUrl;
+                        }
+                      } catch (uploadErr) {
+                        console.log('Error uploading pending resume:', uploadErr);
+                      }
+                    }
+                    base.resume_uri = finalResumeUri;
+                    if (pending.resume_file_name) base.resume_file_name = pending.resume_file_name;
+                  }
+                }
+                
+                // Add employer specific fields
+                if (pending.role === 'employer') {
+                  if (pending.company_size) base.company_size = pending.company_size;
+                  if (pending.company_description) base.company_description = pending.company_description;
+                }
+                
                 const { error: upsertError } = await supabase
                   .from('profiles')
                   .upsert(base, { onConflict: 'user_id' });

@@ -1,6 +1,6 @@
 export const colors = {
-  primary: '#2563EB', // blue-600
-  primaryDark: '#1D4ED8', // blue-700
+  primary: '#50c8eb',
+  primaryDark: '#50c8eb',
   bg: '#FFFFFF',
   text: '#0F172A',
   subtext: '#64748B',
@@ -9,7 +9,7 @@ export const colors = {
 };
 
 export const gradients = {
-  primary: ['#60A5FA', '#2563EB'],
+  primary: ['#50c8eb', '#50c8eb'],
 };
 
 export const shadows = {

@@ -1,5 +1,8 @@
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/useAuthstore';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
@@ -9,6 +12,7 @@ type PDFUploadStepProps = {
   onClose?: () => void;
   onBack?: () => void;
   error?: string | null;
+  required?: boolean;
 };
 
 export default function PDFUploadStep({
@@ -17,9 +21,12 @@ export default function PDFUploadStep({
   onClose,
   onBack,
   error,
+  required = false,
 }: PDFUploadStepProps) {
   const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const { user } = useAuthStore();
 
   const pickDocument = async () => {
     try {
@@ -43,16 +50,77 @@ export default function PDFUploadStep({
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // If required and no file selected, don't proceed
+    if (required && !selectedFile) {
+      return;
+    }
+    
     if (selectedFile) {
-      onNext(selectedFile.uri, selectedFile.name);
+      // If user is logged in, upload to Supabase Storage immediately
+      if (user?.id) {
+        try {
+          setUploading(true);
+          
+          // Read the file using expo-file-system (works with file:// URIs in React Native)
+          const base64 = await FileSystem.readAsStringAsync(selectedFile.uri, {
+            encoding: 'base64',
+          });
+          
+          // Convert base64 to ArrayBuffer
+          const byteCharacters = atob(base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          
+          // Generate filename with timestamp
+          const timestamp = Date.now();
+          const fileExtension = selectedFile.name.split('.').pop() || 'pdf';
+          const fileName = `${timestamp}.${fileExtension}`;
+          const filePath = `${user.id}/${fileName}`;
+          
+          // Upload to Supabase Storage using ArrayBuffer
+          const { error: uploadError } = await supabase.storage
+            .from('resumes')
+            .upload(filePath, byteArray, {
+              contentType: 'application/pdf',
+              upsert: false,
+            });
+          
+          if (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            throw uploadError;
+          }
+          
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(filePath);
+          
+          const publicUrl = urlData.publicUrl;
+          
+          // Pass the public URL instead of local URI
+          onNext(publicUrl, selectedFile.name);
+        } catch (error) {
+          console.error('Error uploading resume:', error);
+          // Fallback to local URI if upload fails
+          onNext(selectedFile.uri, selectedFile.name);
+        } finally {
+          setUploading(false);
+        }
+      } else {
+        // User not logged in yet - pass local URI, will upload later in handleComplete
+        onNext(selectedFile.uri, selectedFile.name);
+      }
     } else {
       // Allow skipping PDF upload
       onNext('', '');
     }
   };
 
-  const canProceed = !loading;
+  const canProceed = !loading && !uploading && (!required || selectedFile !== null);
 
   return (
     <View className="flex-1 bg-white">
@@ -76,24 +144,31 @@ export default function PDFUploadStep({
       <View className="flex-1 px-6 pt-8">
         {/* Question with accent line */}
         <View className="flex-row items-start mb-12">
-          <View className="w-1 h-12 bg-orange-500 mr-4 rounded-full" />
-          <Text className="flex-1 text-4xl font-bold text-gray-900 font-poppins" style={{ lineHeight: 48 }}>
-            {question}
-          </Text>
+          <View className="w-1 h-12 bg-[#50c8eb] mr-4 rounded-full" />
+          <View className="flex-1">
+            <Text className="text-4xl font-bold text-gray-900 font-poppins" style={{ lineHeight: 48 }}>
+              {question}
+            </Text>
+            {required && (
+              <Text className="text-sm text-red-500 font-poppins mt-1">
+                * Required
+              </Text>
+            )}
+          </View>
         </View>
 
         {/* Upload Area */}
         <TouchableOpacity
           onPress={pickDocument}
-          disabled={loading}
+          disabled={loading || uploading}
           className={`border-2 border-dashed rounded-2xl p-8 items-center justify-center ${
-            selectedFile ? 'border-orange-500 bg-orange-50' : 'border-gray-300 bg-gray-50'
+            selectedFile ? 'border-[#50c8eb] bg-[#50c8eb]/10' : 'border-gray-300 bg-gray-50'
           }`}
           activeOpacity={0.7}
         >
           {selectedFile ? (
             <View className="items-center">
-              <Ionicons name="document-text" size={48} color="#F97316" />
+              <Ionicons name="document-text" size={48} color="#50c8eb" />
               <Text className="text-lg font-poppins font-semibold text-gray-900 mt-4 text-center">
                 {selectedFile.name}
               </Text>
@@ -105,7 +180,7 @@ export default function PDFUploadStep({
             <View className="items-center">
               <Ionicons name="cloud-upload-outline" size={48} color="#9CA3AF" />
               <Text className="text-lg font-poppins font-semibold text-gray-700 mt-4 text-center">
-                {loading ? 'Loading...' : 'Tap to upload PDF'}
+                {loading ? 'Loading...' : uploading ? 'Uploading...' : 'Tap to upload PDF'}
               </Text>
               <Text className="text-sm font-poppins text-gray-500 mt-2">
                 Resume, CV, or Portfolio
@@ -118,7 +193,7 @@ export default function PDFUploadStep({
           <Text className="text-red-500 text-sm font-poppins mt-4">{error}</Text>
         )}
 
-        {!selectedFile && (
+        {!selectedFile && !required && (
           <TouchableOpacity
             onPress={handleNext}
             className="mt-6"
@@ -130,14 +205,14 @@ export default function PDFUploadStep({
         )}
       </View>
 
-      {/* Next Button - Only show if file is selected */}
+      {/* Next Button - Only show if file is selected (or not required) */}
       {selectedFile && (
         <View className="absolute bottom-8 right-6">
           <TouchableOpacity
             onPress={handleNext}
             disabled={!canProceed}
             className={`w-16 h-16 rounded-full items-center justify-center ${
-              canProceed ? 'bg-orange-500' : 'bg-gray-300'
+              canProceed ? 'bg-[#50c8eb]' : 'bg-gray-300'
             }`}
             activeOpacity={0.8}
           >

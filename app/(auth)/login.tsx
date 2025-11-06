@@ -152,7 +152,7 @@ const Login = () => {
       
       {/* Gradient Overlay - seamless blend from blue to transparent */}
       <LinearGradient
-        colors={['#29B6F6',  'transparent']}
+        colors={['#50c8eb',  'transparent']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={{

@@ -27,7 +27,7 @@ export default function GradientButton({ title, onPress, disabled, styleClassNam
         className={`rounded-full overflow-hidden  ${styleClassName || ''}`}
       >
         <LinearGradient 
-          colors={disabled ? ['#9ca3af', '#6b7280'] : ['#2563EB', '#3B82F6', '#60A5FA']} 
+          colors={disabled ? ['#50c8eb', '#6b7280'] : ['#50c8eb', '#50c8eb', '#60A5FA']} 
           start={{ x: 0, y: 0 }} 
           end={{ x: 1, y: 1 }} 
           className="py-5 items-center"

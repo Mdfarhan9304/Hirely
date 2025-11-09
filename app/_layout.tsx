@@ -14,8 +14,9 @@ import { Jost_400Regular, Jost_500Medium, Jost_600SemiBold, Jost_700Bold, useFon
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  initialRouteName: 'index',
 };
+
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -43,6 +44,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -52,3 +54,4 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+

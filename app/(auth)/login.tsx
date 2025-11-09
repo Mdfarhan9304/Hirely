@@ -27,17 +27,14 @@ const Login = () => {
     return () => setIsMounted(false)
   }, [])
 
-  // Disabled navigation logic to prevent errors
-  // TODO: Re-enable after fixing navigation context issues
-  // useEffect(() => {
-  //   if (!initialized || !isMounted) return
-  //   
-  //   if (user && profile?.role) {
-  //     setTimeout(() => {
-  //       router.replace('/(tabs)')
-  //     }, 200)
-  //   }
-  // }, [user, profile, initialized, isMounted])
+  // Redirect if already logged in with profile
+  useEffect(() => {
+    if (!initialized || !isMounted) return
+    if (user && profile?.role) {
+      console.log('✅ Already logged in, redirecting to home');
+      router.replace('/(tabs)')
+    }
+  }, [user, profile, initialized, isMounted])
 
   const handleResetPassword = async () => {
     setError(null)

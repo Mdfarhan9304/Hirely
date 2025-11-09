@@ -65,131 +65,188 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    const currentState = get();
+    
+    // Prevent multiple initializations
+    if (currentState.initialized) {
+      console.log('🔐 Auth already initialized, skipping');
+      return;
+    }
+    
     try {
-      // Get initial session
+      console.log('🔐 Initializing auth...');
+      
+      // Get initial session first - this should retrieve persisted session from AsyncStorage
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
-        console.error('Error getting session:', error);
+        console.error('❌ Error getting session:', error);
         set({ loading: false, initialized: true });
         return;
       }
 
+      console.log('📦 Initial session:', session?.user?.id || 'no session');
+
       if (session?.user) {
+        console.log('✅ Session found, setting user:', session.user.id);
         set({ user: session.user, session, loading: false, initialized: true });
         // Fetch profile
         const { fetchProfile } = get();
         await fetchProfile(session.user.id);
       } else {
+        console.log('ℹ️ No session found');
         set({ user: null, session: null, loading: false, initialized: true });
       }
 
-      // Listen for auth changes
+      // Set up auth state change listener
+      // This will fire for auth events AFTER the initial session is loaded
       supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed:', event);
+        console.log('🔄 Auth state changed:', event, session?.user?.id || 'no user');
         
-        if (session?.user) {
-          set({ user: session.user, session });
-          // Apply any pending onboarding info saved before user logged in
-          try {
-            const pendingRaw = await AsyncStorage.getItem('pending_onboarding');
-            if (pendingRaw) {
-              const pending = JSON.parse(pendingRaw) as { 
-                role?: string; 
-                full_name?: string | null; 
-                company_name?: string | null;
-                resume_uri?: string;
-                resume_file_name?: string;
-                first_name?: string;
-                last_name?: string;
-                qualification?: string;
-                company_size?: string;
-                company_description?: string;
-              };
-              if (pending?.role) {
-                const base: any = {
-                  user_id: session.user.id,
-                  role: pending.role,
-                  full_name: pending.role === 'job_seeker' ? pending.full_name : null,
-                  company_name: pending.role === 'employer' ? pending.company_name : null,
-                };
-                
-                // Add job seeker specific fields
-                if (pending.role === 'job_seeker') {
-                  if (pending.first_name) base.first_name = pending.first_name;
-                  if (pending.last_name) base.last_name = pending.last_name;
-                  if (pending.qualification) base.qualification = pending.qualification;
-                  
-                  // Upload resume if it's a local file
-                  if (pending.resume_uri) {
-                    let finalResumeUri = pending.resume_uri;
-                    if (pending.resume_uri.startsWith('file://')) {
-                      try {
-                        const FileSystem = await import('expo-file-system/legacy');
-                        const base64 = await FileSystem.readAsStringAsync(pending.resume_uri, {
-                          encoding: 'base64',
-                        });
-                        
-                        // Convert base64 to ArrayBuffer
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                          byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        
-                        const timestamp = Date.now();
-                        const fileExtension = pending.resume_file_name?.split('.').pop() || 'pdf';
-                        const fileName = `${timestamp}.${fileExtension}`;
-                        const filePath = `${session.user.id}/${fileName}`;
-                        
-                        const { error: uploadError } = await supabase.storage
-                          .from('resumes')
-                          .upload(filePath, byteArray, {
-                            contentType: 'application/pdf',
-                            upsert: false,
-                          });
-                        
-                        if (!uploadError) {
-                          const { data: urlData } = supabase.storage
-                            .from('resumes')
-                            .getPublicUrl(filePath);
-                          finalResumeUri = urlData.publicUrl;
-                        }
-                      } catch (uploadErr) {
-                        console.log('Error uploading pending resume:', uploadErr);
-                      }
-                    }
-                    base.resume_uri = finalResumeUri;
-                    if (pending.resume_file_name) base.resume_file_name = pending.resume_file_name;
-                  }
-                }
-                
-                // Add employer specific fields
-                if (pending.role === 'employer') {
-                  if (pending.company_size) base.company_size = pending.company_size;
-                  if (pending.company_description) base.company_description = pending.company_description;
-                }
-                
-                const { error: upsertError } = await supabase
-                  .from('profiles')
-                  .upsert(base, { onConflict: 'user_id' });
-                if (upsertError) {
-                  console.log('Upsert error (profiles):', upsertError);
-                } else {
-                  console.log('Pending onboarding applied to profiles');
-                }
-                await AsyncStorage.removeItem('pending_onboarding');
-              }
+        const currentState = get();
+        
+        // Handle INITIAL_SESSION - this should match what we got from getSession
+        if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            // Only update if we don't already have a user (shouldn't happen, but safety check)
+            if (!currentState.user) {
+              console.log('🔄 INITIAL_SESSION: Setting user from listener');
+              set({ user: session.user, session, loading: false, initialized: true });
+              const { fetchProfile } = get();
+              await fetchProfile(session.user.id);
+            } else {
+              console.log('🔄 INITIAL_SESSION: User already set, skipping');
             }
-          } catch (e) {
-            console.log('Failed applying pending onboarding', e);
           }
+          return;
+        }
+        
+        // Handle token refresh - update session without clearing state
+        if (event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
+            console.log('🔄 Token refreshed, updating session');
+            set({ user: session.user, session, loading: false });
+          }
+          return;
+        }
+        
+        // Handle explicit sign out - only clear state on this event
+        if (event === 'SIGNED_OUT') {
+          console.log('👋 User signed out');
+          set({ user: null, session: null, profile: null, loading: false });
+          return;
+        }
+        
+        // For all other events with a session, update the state
+        if (session?.user) {
+          console.log('✅ Session available, updating state');
+          set({ user: session.user, session, loading: false });
+          
+          // Only process pending onboarding on SIGNED_IN event
+          if (event === 'SIGNED_IN') {
+            // Apply any pending onboarding info saved before user logged in
+            try {
+              const pendingRaw = await AsyncStorage.getItem('pending_onboarding');
+              if (pendingRaw) {
+                const pending = JSON.parse(pendingRaw) as { 
+                  role?: string; 
+                  full_name?: string | null; 
+                  company_name?: string | null;
+                  resume_uri?: string;
+                  resume_file_name?: string;
+                  first_name?: string;
+                  last_name?: string;
+                  qualification?: string;
+                  company_size?: string;
+                  company_description?: string;
+                };
+                if (pending?.role) {
+                  const base: any = {
+                    user_id: session.user.id,
+                    role: pending.role,
+                    full_name: pending.role === 'job_seeker' ? pending.full_name : null,
+                    company_name: pending.role === 'employer' ? pending.company_name : null,
+                  };
+                  
+                  // Add job seeker specific fields
+                  if (pending.role === 'job_seeker') {
+                    if (pending.first_name) base.first_name = pending.first_name;
+                    if (pending.last_name) base.last_name = pending.last_name;
+                    if (pending.qualification) base.qualification = pending.qualification;
+                    
+                    // Upload resume if it's a local file
+                    if (pending.resume_uri) {
+                      let finalResumeUri = pending.resume_uri;
+                      if (pending.resume_uri.startsWith('file://')) {
+                        try {
+                          const FileSystem = await import('expo-file-system/legacy');
+                          const base64 = await FileSystem.readAsStringAsync(pending.resume_uri, {
+                            encoding: 'base64',
+                          });
+                          
+                          // Convert base64 to ArrayBuffer
+                          const byteCharacters = atob(base64);
+                          const byteNumbers = new Array(byteCharacters.length);
+                          for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                          }
+                          const byteArray = new Uint8Array(byteNumbers);
+                          
+                          const timestamp = Date.now();
+                          const fileExtension = pending.resume_file_name?.split('.').pop() || 'pdf';
+                          const fileName = `${timestamp}.${fileExtension}`;
+                          const filePath = `${session.user.id}/${fileName}`;
+                          
+                          const { error: uploadError } = await supabase.storage
+                            .from('resumes')
+                            .upload(filePath, byteArray, {
+                              contentType: 'application/pdf',
+                              upsert: false,
+                            });
+                          
+                          if (!uploadError) {
+                            const { data: urlData } = supabase.storage
+                              .from('resumes')
+                              .getPublicUrl(filePath);
+                            finalResumeUri = urlData.publicUrl;
+                          }
+                        } catch (uploadErr) {
+                          console.log('Error uploading pending resume:', uploadErr);
+                        }
+                      }
+                      base.resume_uri = finalResumeUri;
+                      if (pending.resume_file_name) base.resume_file_name = pending.resume_file_name;
+                    }
+                  }
+                  
+                  // Add employer specific fields
+                  if (pending.role === 'employer') {
+                    if (pending.company_size) base.company_size = pending.company_size;
+                    if (pending.company_description) base.company_description = pending.company_description;
+                  }
+                  
+                  const { error: upsertError } = await supabase
+                    .from('profiles')
+                    .upsert(base, { onConflict: 'user_id' });
+                  if (upsertError) {
+                    console.log('Upsert error (profiles):', upsertError);
+                  } else {
+                    console.log('Pending onboarding applied to profiles');
+                  }
+                  await AsyncStorage.removeItem('pending_onboarding');
+                }
+              }
+            } catch (e) {
+              console.log('Failed applying pending onboarding', e);
+            }
+          }
+          
+          // Always fetch profile when we have a session
           const { fetchProfile } = get();
           await fetchProfile(session.user.id);
-        } else {
-          set({ user: null, session: null, profile: null });
         }
+        // If session is null but it's not SIGNED_OUT, don't clear state
+        // This prevents clearing state on app refresh when session is temporarily unavailable
       });
     } catch (error) {
       console.error('Error initializing auth:', error);

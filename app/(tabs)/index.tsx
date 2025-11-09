@@ -19,19 +19,18 @@ export default function HomeScreen() {
     return () => setIsMounted(false)
   }, [])
 
-  // Disabled navigation logic to prevent errors
-  // TODO: Re-enable after fixing navigation context issues
-  // useEffect(() => {
-  //   if (!initialized || !isMounted) return
-  //   
-  //   setTimeout(() => {
-  //     if (!user) {
-  //       router.replace('/(auth)/login')
-  //     } else if (!profile?.role) {
-  //       router.replace('/(auth)/onboarding')
-  //     }
-  //   }, 200)
-  // }, [user, profile, initialized, isMounted])
+  // Redirect if not logged in or no profile
+  useEffect(() => {
+    if (!initialized || !isMounted) return
+    
+    if (!user) {
+      console.log('🚀 Home: No user, redirecting to login');
+      router.replace('/(auth)/login')
+    } else if (!profile?.role) {
+      console.log('🚀 Home: No profile, redirecting to onboarding');
+      router.replace('/(auth)/onboarding')
+    }
+  }, [user, profile, initialized, isMounted])
 
   const handleSwipeComplete = () => {
     // Optional: Handle when all cards are swiped
@@ -46,7 +45,7 @@ export default function HomeScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView className="flex-1 bg-gray-100">
+      <SafeAreaView className="flex-1 bg-gray-100" edges={['top']}>
         <StatusBar barStyle="dark-content" />
         
         {/* Header */}
@@ -81,8 +80,8 @@ export default function HomeScreen() {
           <CardStack onSwipeComplete={handleSwipeComplete} />
         </View>
 
-        {/* Action Buttons */}
-        <View className="pb-8">
+        {/* Action Buttons - Add padding for tab bar */}
+        <View className="pb-24">
           <SwipeActions />
         </View>
       </SafeAreaView>

@@ -1,13 +1,14 @@
+import AnimatedProgressBar from '@/components/ui/AnimatedProgressBar'
 import PDFUploadStep from '@/components/ui/PDFUploadStep'
 import SingleInputStep from '@/components/ui/SingleInputStep'
-import { supabase } from '@/lib/supabase'
+import { saveOnboardingProfile } from '@/lib/onboarding-api'
 import { useAuthStore } from '@/store/useAuthstore'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { Building2, UserSearch } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { Modal, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 type Role = 'job_seeker' | 'employer' | null
 
@@ -17,6 +18,9 @@ const Onboarding = () => {
   const [selectedRole, setSelectedRole] = useState<Role>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [showProgressModal, setShowProgressModal] = useState(false)
   
  
   const [firstName, setFirstName] = useState('')
@@ -46,6 +50,29 @@ const Onboarding = () => {
     if (selectedRole === 'job_seeker') return 5 // Role selection + 4 steps
     return 4 // Role selection + 3 steps
   }
+
+  // Calculate completion percentage based on filled fields
+  const calculateCompletionProgress = (): number => {
+    if (!selectedRole) return 0
+
+    if (selectedRole === 'job_seeker') {
+      let progress = 0
+      if (firstName.trim()) progress += 25
+      if (lastName.trim()) progress += 25
+      if (qualification.trim()) progress += 25
+      if (resumeUri) progress += 25
+      return progress
+    } else {
+      // Employer
+      let progress = 0
+      if (companyName.trim()) progress += 33.33
+      if (companySize.trim()) progress += 33.33
+      if (companyDescription.trim()) progress += 33.34
+      return Math.min(progress, 100)
+    }
+  }
+
+  const completionProgress = calculateCompletionProgress()
 
   const handleRoleSelection = (role: 'job_seeker' | 'employer') => {
     setSelectedRole(role)
@@ -102,7 +129,6 @@ const Onboarding = () => {
       }
     }
 
-
     if (selectedRole === 'job_seeker') {
       if (!firstName.trim() || !lastName.trim() || !qualification.trim() || !resumeUri) {
         if (!resumeUri) {
@@ -121,91 +147,43 @@ const Onboarding = () => {
 
     try {
       setLoading(true)
-      
-      const fullName = selectedRole === 'job_seeker' 
-        ? `${firstName.trim()} ${lastName.trim()}`.trim()
-        : null
+      setShowProgressModal(true)
+      setUploadProgress(0)
+      setUploadStatus('Starting...')
 
-      const base: any = {
-        user_id: user.id,
-        role: selectedRole,
-        full_name: fullName,
-        company_name: selectedRole === 'employer' ? companyName.trim() : null,
-      }
-
-      if (selectedRole === 'job_seeker') {
-        base.first_name = firstName.trim()
-        base.last_name = lastName.trim()
-        base.qualification = qualification.trim()
-        // Resume is required for job seekers
-        if (resumeUri) {
-          // Check if resumeUri is a local file (starts with file://) or already a public URL
-          let finalResumeUri = resumeUri
-          if (resumeUri.startsWith('file://')) {
-            try {
-              // Upload local file to Supabase Storage using expo-file-system
-              const FileSystem = await import('expo-file-system/legacy')
-              const base64 = await FileSystem.readAsStringAsync(resumeUri, {
-                encoding: 'base64',
-              })
-              
-              // Convert base64 to ArrayBuffer
-              const byteCharacters = atob(base64)
-              const byteNumbers = new Array(byteCharacters.length)
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i)
-              }
-              const byteArray = new Uint8Array(byteNumbers)
-              
-              const timestamp = Date.now()
-              const fileExtension = resumeFileName.split('.').pop() || 'pdf'
-              const fileName = `${timestamp}.${fileExtension}`
-              const filePath = `${user.id}/${fileName}`
-              
-              const { error: uploadError } = await supabase.storage
-                .from('resumes')
-                .upload(filePath, byteArray, {
-                  contentType: 'application/pdf',
-                  upsert: false,
-                })
-              
-              if (!uploadError) {
-                const { data: urlData } = supabase.storage
-                  .from('resumes')
-                  .getPublicUrl(filePath)
-                finalResumeUri = urlData.publicUrl
-              } else {
-                console.error('Error uploading resume:', uploadError)
-                // Fallback to local URI if upload fails
-              }
-            } catch (uploadErr) {
-              console.error('Error uploading resume:', uploadErr)
-              // Fallback to local URI if upload fails
-            }
-          }
-          base.resume_uri = finalResumeUri
-          base.resume_file_name = resumeFileName
+      // Use organized API service
+      // selectedRole is guaranteed to be non-null at this point due to validation above
+      await saveOnboardingProfile(
+        {
+          userId: user.id,
+          role: selectedRole as 'job_seeker' | 'employer',
+          firstName: selectedRole === 'job_seeker' ? firstName.trim() : undefined,
+          lastName: selectedRole === 'job_seeker' ? lastName.trim() : undefined,
+          qualification: selectedRole === 'job_seeker' ? qualification.trim() : undefined,
+          resumeUri: selectedRole === 'job_seeker' ? resumeUri : undefined,
+          resumeFileName: selectedRole === 'job_seeker' ? resumeFileName : undefined,
+          companyName: selectedRole === 'employer' ? companyName.trim() : undefined,
+          companySize: selectedRole === 'employer' ? companySize.trim() : undefined,
+          companyDescription: selectedRole === 'employer' ? companyDescription.trim() : undefined,
+        },
+        (progress) => {
+          setUploadProgress(progress.progress)
+          setUploadStatus(progress.status)
         }
-      }
+      )
 
-      if (selectedRole === 'employer') {
-        base.company_size = companySize.trim()
-        if (companyDescription.trim()) {
-          base.company_description = companyDescription.trim()
-        }
-      }
-
-      const { error: upsertError } = await supabase
-        .from('profiles')
-        .upsert(base, { onConflict: 'user_id' })
-
-      if (upsertError) throw upsertError
-
+      // Fetch updated profile
       await useAuthStore.getState().fetchProfile(user.id)
-      router.replace('/(tabs)')
+      
+      // Small delay to show completion
+      setTimeout(() => {
+        setShowProgressModal(false)
+        router.replace('/(tabs)')
+      }, 500)
     } catch (e: any) {
       console.error('Error saving profile:', e)
       setError(e?.message || 'Error saving profile. Please try again.')
+      setShowProgressModal(false)
     } finally {
       setLoading(false)
     }
@@ -279,6 +257,7 @@ const Onboarding = () => {
             onBack={handleBack}
             error={error}
             disabled={loading}
+            completionProgress={completionProgress}
           />
         )
       case 2:
@@ -292,6 +271,7 @@ const Onboarding = () => {
             onBack={handleBack}
             error={error}
             disabled={loading}
+            completionProgress={completionProgress}
           />
         )
       case 3:
@@ -305,6 +285,7 @@ const Onboarding = () => {
             onBack={handleBack}
             error={error}
             disabled={loading}
+            completionProgress={completionProgress}
           />
         )
       case 4:
@@ -319,6 +300,7 @@ const Onboarding = () => {
             }}
             onBack={handleBack}
             error={error}
+            completionProgress={completionProgress}
           />
         )
       default:
@@ -340,6 +322,7 @@ const Onboarding = () => {
             onBack={handleBack}
             error={error}
             disabled={loading}
+            completionProgress={completionProgress}
           />
         )
       case 2:
@@ -353,6 +336,7 @@ const Onboarding = () => {
             onBack={handleBack}
             error={error}
             disabled={loading}
+            completionProgress={completionProgress}
           />
         )
       case 3:
@@ -368,6 +352,7 @@ const Onboarding = () => {
             disabled={loading}
             multiline
             required={false}
+            completionProgress={completionProgress}
           />
         )
       default:
@@ -375,7 +360,33 @@ const Onboarding = () => {
     }
   }
 
-  return null
+  return (
+    <>
+      {showProgressModal && (
+        <Modal
+          visible={showProgressModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {}}
+        >
+          <View className="flex-1 bg-black/50 items-center justify-center px-6">
+            <View className="bg-white rounded-3xl p-8 w-full max-w-sm">
+              <Text className="text-2xl font-bold text-gray-900 font-poppins mb-6 text-center">
+                Setting up your profile
+              </Text>
+              <AnimatedProgressBar
+                progress={uploadProgress}
+                status={uploadStatus}
+                height={10}
+                showPercentage={true}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+      {null}
+    </>
+  )
 }
 
 export default Onboarding

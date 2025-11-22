@@ -6,13 +6,22 @@ import { create } from "zustand";
 type AuthState = {
   user: User | null;
   session: Session | null;
-  profile: { role?: string; full_name?: string; company_name?: string } | null;
+  profile: {
+    role?: string;
+    full_name?: string;
+    company_name?: string;
+    first_name?: string;
+    last_name?: string;
+    qualification?: string;
+    company_size?: string;
+    company_description?: string;
+  } | null;
   loading: boolean;
   initialized: boolean;
   login: (user: User, session: Session) => void;
   logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
-  setProfile: (profile: { role?: string; full_name?: string; company_name?: string } | null) => void;
+  setProfile: (profile: any | null) => void;
   fetchProfile: (userId: string) => Promise<void>;
   initialize: () => Promise<void>;
 };
@@ -49,7 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('role, full_name, company_name')
+        .select('*')
         .eq('user_id', userId)
         .single();
 
@@ -66,16 +75,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     const currentState = get();
-    
+
     // Prevent multiple initializations
     if (currentState.initialized) {
       console.log('🔐 Auth already initialized, skipping');
       return;
     }
-    
+
     try {
       console.log('🔐 Initializing auth...');
-      
+
       // Get initial session first - this should retrieve persisted session from AsyncStorage
       const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -102,9 +111,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // This will fire for auth events AFTER the initial session is loaded
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔄 Auth state changed:', event, session?.user?.id || 'no user');
-        
+
         const currentState = get();
-        
+
         // Handle INITIAL_SESSION - this should match what we got from getSession
         if (event === 'INITIAL_SESSION') {
           if (session?.user) {
@@ -120,7 +129,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           return;
         }
-        
+
         // Handle token refresh - update session without clearing state
         if (event === 'TOKEN_REFRESHED') {
           if (session?.user) {
@@ -129,28 +138,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           return;
         }
-        
+
         // Handle explicit sign out - only clear state on this event
         if (event === 'SIGNED_OUT') {
           console.log('👋 User signed out');
           set({ user: null, session: null, profile: null, loading: false });
           return;
         }
-        
+
         // For all other events with a session, update the state
         if (session?.user) {
           console.log('✅ Session available, updating state');
           set({ user: session.user, session, loading: false });
-          
+
           // Only process pending onboarding on SIGNED_IN event
           if (event === 'SIGNED_IN') {
             // Apply any pending onboarding info saved before user logged in
             try {
               const pendingRaw = await AsyncStorage.getItem('pending_onboarding');
               if (pendingRaw) {
-                const pending = JSON.parse(pendingRaw) as { 
-                  role?: string; 
-                  full_name?: string | null; 
+                const pending = JSON.parse(pendingRaw) as {
+                  role?: string;
+                  full_name?: string | null;
                   company_name?: string | null;
                   resume_uri?: string;
                   resume_file_name?: string;
@@ -167,13 +176,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     full_name: pending.role === 'job_seeker' ? pending.full_name : null,
                     company_name: pending.role === 'employer' ? pending.company_name : null,
                   };
-                  
+
                   // Add job seeker specific fields
                   if (pending.role === 'job_seeker') {
                     if (pending.first_name) base.first_name = pending.first_name;
                     if (pending.last_name) base.last_name = pending.last_name;
                     if (pending.qualification) base.qualification = pending.qualification;
-                    
+
                     // Upload resume if it's a local file
                     if (pending.resume_uri) {
                       let finalResumeUri = pending.resume_uri;
@@ -183,7 +192,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                           const base64 = await FileSystem.readAsStringAsync(pending.resume_uri, {
                             encoding: 'base64',
                           });
-                          
+
                           // Convert base64 to ArrayBuffer
                           const byteCharacters = atob(base64);
                           const byteNumbers = new Array(byteCharacters.length);
@@ -191,19 +200,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                             byteNumbers[i] = byteCharacters.charCodeAt(i);
                           }
                           const byteArray = new Uint8Array(byteNumbers);
-                          
+
                           const timestamp = Date.now();
                           const fileExtension = pending.resume_file_name?.split('.').pop() || 'pdf';
                           const fileName = `${timestamp}.${fileExtension}`;
                           const filePath = `${session.user.id}/${fileName}`;
-                          
+
                           const { error: uploadError } = await supabase.storage
                             .from('resumes')
                             .upload(filePath, byteArray, {
                               contentType: 'application/pdf',
                               upsert: false,
                             });
-                          
+
                           if (!uploadError) {
                             const { data: urlData } = supabase.storage
                               .from('resumes')
@@ -218,13 +227,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                       if (pending.resume_file_name) base.resume_file_name = pending.resume_file_name;
                     }
                   }
-                  
+
                   // Add employer specific fields
                   if (pending.role === 'employer') {
                     if (pending.company_size) base.company_size = pending.company_size;
                     if (pending.company_description) base.company_description = pending.company_description;
                   }
-                  
+
                   const { error: upsertError } = await supabase
                     .from('profiles')
                     .upsert(base, { onConflict: 'user_id' });
@@ -240,7 +249,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               console.log('Failed applying pending onboarding', e);
             }
           }
-          
+
           // Always fetch profile when we have a session
           const { fetchProfile } = get();
           await fetchProfile(session.user.id);

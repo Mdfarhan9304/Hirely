@@ -4,13 +4,13 @@ import { useAuthStore } from '@/store/useAuthstore';
 import { useCardStore } from '@/store/useCardStore';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { reset } = useCardStore();
-  const { user, profile, logout, initialized } = useAuthStore();
+  const { user, profile, initialized } = useAuthStore();
   const [isMounted, setIsMounted] = useState(false);
 
   // Track component mount state
@@ -22,7 +22,7 @@ export default function HomeScreen() {
   // Redirect if not logged in or no profile
   useEffect(() => {
     if (!initialized || !isMounted) return
-    
+
     if (!user) {
       console.log('🚀 Home: No user, redirecting to login');
       router.replace('/(auth)/login')
@@ -37,17 +37,13 @@ export default function HomeScreen() {
     console.log('All cards swiped!');
   };
 
-  const handleLogout = async () => {
-    await logout();
-    // Navigate to login screen after logout
-    router.replace('/(auth)/login');
-  };
+
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView className="flex-1 bg-gray-100" edges={['top']}>
         <StatusBar barStyle="dark-content" />
-        
+
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
           <View className="flex-row items-center">
@@ -63,25 +59,16 @@ export default function HomeScreen() {
               )}
             </View>
           </View>
-          <View className="flex-row items-center gap-4">
-            {user && (
-              <TouchableOpacity
-                onPress={handleLogout}
-                className="px-3 py-1 bg-red-500 rounded-lg"
-              >
-                <Text className="text-white text-sm font-medium">Logout</Text>
-              </TouchableOpacity>
-            )}
-          </View>
         </View>
 
         {/* Card Stack Container */}
-        <View className="flex-1 justify-center">
+        <View className="flex-1 justify-center bg-gradient-to-b from-blue-500/10 to-white">
+
           <CardStack onSwipeComplete={handleSwipeComplete} />
         </View>
 
         {/* Action Buttons - Add padding for tab bar */}
-        <View className="pb-24">
+        <View className="pb-5">
           <SwipeActions />
         </View>
       </SafeAreaView>

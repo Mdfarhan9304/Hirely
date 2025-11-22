@@ -10,6 +10,13 @@ export interface CardData {
   jobTitle?: string;
   location?: string;
   skills?: string[];
+  // Employer-specific fields
+  companySize?: string;
+  companyDescription?: string;
+  // Job seeker-specific fields (for when employers view job seekers)
+  resumeUri?: string;
+  resumeFileName?: string;
+  qualification?: string;
 }
 
 interface CardState {
@@ -87,7 +94,7 @@ const mockCards: CardData[] = [
 
 
 export const useCardStore = create<CardState>((set, get) => ({
-  cards: mockCards,
+  cards: [], // Start with empty array - will be populated from Supabase
   currentIndex: 0,
   swipedCards: [],
   likedCards: [],
@@ -112,7 +119,7 @@ export const useCardStore = create<CardState>((set, get) => ({
   },
 
   reset: () => set({
-    cards: mockCards,
+    cards: [],
     currentIndex: 0,
     swipedCards: [],
     likedCards: [],

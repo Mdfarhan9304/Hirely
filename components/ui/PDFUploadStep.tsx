@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import AnimatedProgressBar from './AnimatedProgressBar';
 
 type PDFUploadStepProps = {
   question: string;
@@ -13,6 +14,7 @@ type PDFUploadStepProps = {
   onBack?: () => void;
   error?: string | null;
   required?: boolean;
+  completionProgress?: number;
 };
 
 export default function PDFUploadStep({
@@ -22,6 +24,7 @@ export default function PDFUploadStep({
   onBack,
   error,
   required = false,
+  completionProgress,
 }: PDFUploadStepProps) {
   const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -124,8 +127,19 @@ export default function PDFUploadStep({
 
   return (
     <View className="flex-1 bg-white">
+      {/* Progress Bar */}
+      {completionProgress !== undefined && (
+        <View className="px-6 pt-12 pb-4">
+          <AnimatedProgressBar
+            progress={completionProgress}
+            height={6}
+            showPercentage={true}
+          />
+        </View>
+      )}
+      
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pt-16 pb-8">
+      <View className="flex-row items-center justify-between px-6 pt-4 pb-8">
         <View className="w-10">
           {onBack && (
             <TouchableOpacity onPress={onBack} className="w-10 h-10 items-center justify-center">

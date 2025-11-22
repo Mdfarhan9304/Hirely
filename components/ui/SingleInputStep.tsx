@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import AnimatedProgressBar from "./AnimatedProgressBar";
 
 type SingleInputStepProps = {
   question: string;
@@ -15,6 +16,7 @@ type SingleInputStepProps = {
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   error?: string | null;
   required?: boolean;
+  completionProgress?: number;
 };
 
 export default function SingleInputStep({
@@ -30,6 +32,7 @@ export default function SingleInputStep({
   keyboardType = "default",
   error,
   required = true,
+  completionProgress,
 }: SingleInputStepProps) {
   const inputRef = React.useRef<TextInput>(null);
 
@@ -43,8 +46,19 @@ export default function SingleInputStep({
 
   return (
     <View className="flex-1 bg-white">
+      {/* Progress Bar */}
+      {completionProgress !== undefined && (
+        <View className="px-6 pt-12 pb-4">
+          <AnimatedProgressBar
+            progress={completionProgress}
+            height={6}
+            showPercentage={true}
+          />
+        </View>
+      )}
+      
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pt-16 pb-8">
+      <View className="flex-row items-center justify-between px-6 pt-4 pb-8">
         <View className="w-10">
           {onBack && (
             <TouchableOpacity

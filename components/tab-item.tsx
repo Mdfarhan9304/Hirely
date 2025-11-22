@@ -2,11 +2,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
-    interpolate,
-    interpolateColor,
-    useAnimatedStyle,
-    useDerivedValue,
-    withSpring,
+  interpolate,
+  interpolateColor,
+  useAnimatedStyle,
+  useDerivedValue,
+  withSpring,
 } from 'react-native-reanimated';
 
 type TabProps = {
@@ -31,7 +31,7 @@ export const TabItem = ({
   const progress = useDerivedValue(() => {
     return withSpring(isActive ? 1 : 0, {
       dampingRatio: 1,
-      duration: 400,
+      duration: 800,
     });
   }, [isActive]);
 
